@@ -25,7 +25,7 @@ The generator provides a very easy api.
 
 > **DELETE /trip** - deletes the trip at the connected broker instance
 
-Implementation of POST is done very trivial, if an entity already exists it is deleted and newly created(therefore the endpoint is slow - ~15s response time are normal). Therefore its not suitable for brokers that 
+Implementation of POST is done very trivial, if an entity already exists it is deleted and newly created(therefore the endpoint is slow - ~15s response time are normal). Its not suitable for brokers that 
 already support the temporal inteface.  
  
  ## Usage
