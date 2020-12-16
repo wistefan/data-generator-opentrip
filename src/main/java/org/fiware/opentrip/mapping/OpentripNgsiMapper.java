@@ -69,8 +69,9 @@ public interface OpentripNgsiMapper {
         eventEntity.setId(event.getId());
         eventEntity.setType(type);
         Optional.ofNullable(event.getLifecyclePhase()).ifPresent(lifecyclePhase -> eventEntity.putProperty("lifeCyclePhase", lifecyclePhase.getPhase().getValue()));
-        Optional.ofNullable(event.getEventGenerationTime()).ifPresent(time -> eventEntity.putProperty("eventGenerationTime", time.toEpochSecond()));
+        Optional.ofNullable(event.getTime()).ifPresent(time -> eventEntity.putProperty("time", time.toEpochSecond()));
         Optional.ofNullable(event.getType()).ifPresent(eventType -> eventEntity.putProperty("eventType", eventType));
+        Optional.ofNullable(event.getLocation()).ifPresent(location -> eventEntity.putRelationship("location", location));
         AtomicInteger counter = new AtomicInteger(0);
         event.getInvolvedObjects().forEach(involvedObject -> eventEntity.putRelationship(String.format("involvedObject%s", counter.getAndIncrement()), involvedObject));
         eventEntity.putRelationship("trip", tripId);

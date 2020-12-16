@@ -2,14 +2,13 @@ package org.fiware.opentrip;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micronaut.context.annotation.Parameter;
 import io.micronaut.context.annotation.Value;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
-import io.micronaut.http.annotation.Controller;
-import io.micronaut.http.annotation.Delete;
-import io.micronaut.http.annotation.Get;
-import io.micronaut.http.annotation.Post;
+import io.micronaut.http.annotation.*;
+import io.micronaut.http.client.BlockingHttpClient;
 import io.micronaut.http.client.RxHttpClient;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.http.client.exceptions.ReadTimeoutException;
@@ -23,6 +22,8 @@ import org.fiware.opentrip.ngsi.Entity;
 import org.threeten.bp.Instant;
 import org.threeten.bp.OffsetDateTime;
 import org.threeten.bp.ZoneOffset;
+import org.threeten.bp.temporal.ChronoUnit;
+import org.threeten.bp.temporal.TemporalUnit;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -40,22 +41,21 @@ public class Scenario {
 
     private final URL orionURL;
     private final OpentripNgsiMapper opentripNgsiMapper;
-    private final RxHttpClient httpClient;
+    private final BlockingHttpClient httpClient;
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final Long DEFAULT_START_TIME = OffsetDateTime.of(2020, 12, 12, 12, 00, 00, 00, ZoneOffset.UTC).toEpochSecond();
+    private static final OffsetDateTime DEFAULT_START_TIME = OffsetDateTime.of(2020, 12, 12, 12, 00, 00, 00, ZoneOffset.UTC);
     private static final String ID_TEMPLATE = "urn:ngsi-ld:%s:%s";
 
-    public Scenario(@Value("${orionURL}") URL orionURL, OpentripNgsiMapper opentripNgsiMapper, RxHttpClient httpClient) {
+    public Scenario(@Value("${orionURL}") URL orionURL, OpentripNgsiMapper opentripNgsiMapper, BlockingHttpClient httpClient) {
         this.orionURL = orionURL;
         this.opentripNgsiMapper = opentripNgsiMapper;
         this.httpClient = httpClient;
     }
 
-    @Get("/trip{?startTime*}")
-    public HttpResponse<String> getScenarioAsNgsi(Optional<Long> startTime) throws JsonProcessingException {
-
-        List<Entity> entityList = generateTripScenario(startTime.orElseGet(() -> DEFAULT_START_TIME))
+    @Get("/trip")
+    public HttpResponse<String> getScenarioAsNgsi(@QueryValue("hourOffset") Optional<Integer> hourOffset) throws JsonProcessingException {
+        List<Entity> entityList = generateTripScenario(hourOffset.orElse(0))
                 .entrySet().stream()
                 .flatMap(entry -> opentripNgsiMapper.tripListToEnities(entry.getKey(), entry.getValue()).stream())
                 .collect(Collectors.toList());
@@ -65,9 +65,9 @@ public class Scenario {
 
     // if an entity already exists, it will be deleted and recreated as an easy temp-solution for updating
     // TODO: do updates when temporal is implemented
-    @Post("/trip{?startTime*}")
-    public void createScenarioAtOrion(Optional<Long> startTime) {
-        List<Entity> entityList = generateTripScenario(startTime.orElseGet(() -> DEFAULT_START_TIME))
+    @Post("/trip")
+    public void createScenarioAtOrion(@QueryValue("hourOffset") Optional<Integer> hourOffset) {
+        List<Entity> entityList = generateTripScenario(hourOffset.orElse(0))
                 .entrySet().stream()
                 .flatMap(entry -> opentripNgsiMapper.tripListToEnities(entry.getKey(), entry.getValue()).stream())
                 .collect(Collectors.toList());
@@ -99,7 +99,7 @@ public class Scenario {
 
     @Delete("/trip")
     public void deleteScenario() {
-        generateTripScenario(DEFAULT_START_TIME)
+        generateTripScenario(0)
                 .entrySet().stream()
                 .flatMap(entry -> opentripNgsiMapper.tripListToEnities(entry.getKey(), entry.getValue()).stream())
                 .collect(Collectors.toList())
@@ -115,25 +115,27 @@ public class Scenario {
 
     private HttpResponse deleteEntity(Entity entity) throws URISyntaxException {
         URI requestURI = UriBuilder.of(orionURL.toURI()).path(String.format("/ngsi-ld/v1/entities/%s", entity.getId())).build();
-        return httpClient.exchange(HttpRequest.DELETE(requestURI.toString()).contentType("application/ld+json")).blockingFirst();
+        return httpClient.exchange(HttpRequest.DELETE(requestURI.toString()).contentType("application/ld+json"));
     }
 
     private HttpResponse postEntity(Entity entity) throws JsonProcessingException, URISyntaxException {
         URI requestURI = UriBuilder.of(orionURL.toURI()).path("/ngsi-ld/v1/entities").build();
-        return httpClient.exchange(HttpRequest.POST(requestURI, OBJECT_MAPPER.writeValueAsString(entity)).contentType("application/ld+json")).blockingFirst();
+        return httpClient.exchange(HttpRequest.POST(requestURI, OBJECT_MAPPER.writeValueAsString(entity)).contentType("application/ld+json"));
     }
 
     /*
      * Banana Company ships a container to its customers storage at the port:
-     * -> load truck at banana companies
-     * -> start driving to the port
-     * --- current time ---
-     * -> stop driving on arrival
-     * -> customer receives bananas at port
-     * -> truck is unloaded at port
+     * -> everything planned - offeset < 0
+     * -> load truck at banana companies - offset 0
+     * -> start driving to the port - offset 1
+     * -> stop driving on arrival - offset 8
+     * -> customer receives bananas at port - offset 9
+     * -> truck is unloaded at port - offset 10
+     * -> everything realized - offset > 10
      */
-    private Map<String, List<?>> generateTripScenario(long tripStartEpoch) {
-        OffsetDateTime tripStartTime = Instant.ofEpochSecond(tripStartEpoch).atOffset(ZoneOffset.UTC);
+    private Map<String, List<?>> generateTripScenario(int hourOffset) {
+        OffsetDateTime tripStartTime = DEFAULT_START_TIME;
+        OffsetDateTime currentTime = DEFAULT_START_TIME.plus(hourOffset, ChronoUnit.HOURS);
 
         List scenarioElements = new ArrayList<>();
 
@@ -172,39 +174,58 @@ public class Scenario {
         Event loadingEvent = new Event()
                 .id(String.format(ID_TEMPLATE, Event.class.getSimpleName().toLowerCase(), "loading-event-id"))
                 .involvedObjects(List.of(bananaShipment.getId(), bananaTruck.getId()))
-                .lifecyclePhase(new LifecyclePhase().phase(LifecyclePhase.PhaseEnum.REALIZED))
-                .eventGenerationTime(tripStartTime)
+                .location(bananaCompany.getId())
+                .time(tripStartTime)
                 .type("loadShipmentEvent");
+        setLifecyclePhase(loadingEvent, currentTime);
         scenarioElements.add(loadingEvent);
         Event unloadingEvent = new Event()
                 .id(String.format(ID_TEMPLATE, Event.class.getSimpleName().toLowerCase(), "unloading-event-id"))
                 .involvedObjects(List.of(bananaShipment.getId(), bananaTruck.getId()))
+                .location(portStorage.getId())
                 .lifecyclePhase(new LifecyclePhase().phase(LifecyclePhase.PhaseEnum.PLANNED))
-                .eventGenerationTime(tripStartTime.plusDays(1).plusHours(2))
+                .time(tripStartTime.plusHours(10))
                 .type("unloadShipmentEvent");
+        setLifecyclePhase(unloadingEvent, currentTime);
         scenarioElements.add(unloadingEvent);
         Event receiveBananasEvent = new Event()
                 .id(String.format(ID_TEMPLATE, Event.class.getSimpleName().toLowerCase(), "receive-bananas-event"))
+                .location(portStorage.getId())
                 .involvedObjects(List.of(portStorage.getId(), bananaShipment.getId()))
                 .lifecyclePhase(new LifecyclePhase().phase(LifecyclePhase.PhaseEnum.PLANNED))
-                .eventGenerationTime(tripStartTime.plusDays(1).plusHours(1))
+                .time(tripStartTime.plusHours(9))
                 .type("receiveShipmentEvent");
+        setLifecyclePhase(receiveBananasEvent, currentTime);
         scenarioElements.add(receiveBananasEvent);
         Event startDrivingEvent = new Event()
                 .id(String.format(ID_TEMPLATE, Event.class.getSimpleName().toLowerCase(), "start-driving-event"))
                 .involvedObjects(List.of(bananaTruck.getId()))
+                .location(bananaCompany.getId())
                 .lifecyclePhase(new LifecyclePhase().phase(LifecyclePhase.PhaseEnum.REALIZED))
-                .eventGenerationTime(tripStartTime.plusMinutes(30))
+                .time(tripStartTime.plusHours(1))
                 .type("startMovingEvent");
+        setLifecyclePhase(startDrivingEvent, currentTime);
         scenarioElements.add(startDrivingEvent);
         Event stopDrivingEvent = new Event()
                 .id(String.format(ID_TEMPLATE, Event.class.getSimpleName().toLowerCase(), "stop-driving-event"))
                 .involvedObjects(List.of(bananaTruck.getId()))
+                .location(portStorage.getId())
                 .lifecyclePhase(new LifecyclePhase().phase(LifecyclePhase.PhaseEnum.PLANNED))
-                .eventGenerationTime(tripStartTime.plusDays(1).plusMinutes(30))
+                .time(tripStartTime.plusHours(8))
                 .type("stopMovingEvent");
+        setLifecyclePhase(stopDrivingEvent, currentTime);
         scenarioElements.add(stopDrivingEvent);
 
         return Map.of(bananaTransportTrip.getId(), scenarioElements);
+    }
+
+    private void setLifecyclePhase(Event event, OffsetDateTime currentTime) {
+        if(event.getTime().isBefore(currentTime)) {
+            event.setLifecyclePhase(new LifecyclePhase().phase(LifecyclePhase.PhaseEnum.REALIZED));
+        } else if (event.getTime().isEqual(currentTime)) {
+            event.setLifecyclePhase(new LifecyclePhase().phase(LifecyclePhase.PhaseEnum.ACTUAL));
+        } else if(event.getTime().isAfter(currentTime)) {
+            event.setLifecyclePhase(new LifecyclePhase().phase(LifecyclePhase.PhaseEnum.PLANNED));
+        }
     }
 }

@@ -2699,6 +2699,9 @@ definitions:
           Remarks for this event.
         example:
           "The traffic lights weren't working"
+      location:
+        type: string
+        format: uri
     discriminator: type
     required:
       - type
@@ -2811,18 +2814,6 @@ definitions:
       - $ref: "#/definitions/event"
       - $ref: "#/definitions/updateEvent_parent"
 
-  sensorUpdateEvent:
-    allOf:
-      - $ref: "#/definitions/event"
-      - $ref: "#/definitions/updateEvent_parent"
-      - properties:
-          sensorId:
-            type: string
-            description: |
-              ID of the sensor, must be unique within the `Vechicle` that is referenced in the `involvedObjects`.
-          sensorValue:
-            $ref: "#/definitions/valueWithUnit"
-
   loadShipmentEvent:
     description: |
       This events models the loading of a `Shipment` in a `Vehicle`. This event often takes place at the same time as a `releaseShipmentEvent`.
@@ -2852,28 +2843,6 @@ definitions:
       - $ref: "#/definitions/event"
       - $ref: "#/definitions/locationUpdateEvent_parent"
 
-  restrictionWarningEvent:
-    allOf:
-      - $ref: "#/definitions/event"
-      - $ref: "#/definitions/locationUpdateEvent_parent"
-      - properties:
-          warning:
-            type: string #TODO: define warning type
-            description: Restriction warning description
-    required:
-      - warning
-
-  trafficWarningEvent:
-    allOf:
-      - $ref: "#/definitions/event"
-      - $ref: "#/definitions/locationUpdateEvent_parent"
-      - properties:
-          warning:
-            type: string #TODO: define warning type
-            description: Traffic warning description
-    required:
-      - warning
-
   linkTripsEvent:
     allOf:
       - $ref: "#/definitions/event"
@@ -2897,14 +2866,6 @@ definitions:
     allOf:
       - $ref: "#/definitions/event"
       - $ref: "#/definitions/updateEvent_parent"
-
-  constraintViolationEvent:
-    allOf:
-      - $ref: "#/definitions/event"
-      - $ref: "#/definitions/updateEvent_parent"
-      - properties:
-          violatedConstraint:
-            $ref: "#/definitions/constraint"
 
   cancelEvent:
     allOf:
