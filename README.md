@@ -44,7 +44,7 @@ curl -X POST http://localhost:8080/trip?hourOffset=0
 ```
 Get the 'stopMovingEvent' and it phase and timestamp, the phase will be 'planned':
 ```
-curl -X GET 'http://localhost:8026/ngsi-ld/v1/entities?type=event&q=(eventType==%22stopMovingEvent%22);(involvedObject0==%22urn:ngsi-ld:vehicle:banana-truck-id%22)'
+curl -X GET 'http://localhost:8026/ngsi-ld/v1/entities?type=event&q=(((eventType==%22stopMovingEvent%22);(involvedObject0==%22urn:ngsi-ld:vehicle:banana-truck-id%22))|(lifeCyclePhase==%22actual%22))'
 ```
 Update scenario to offset 8:
 ```
@@ -52,7 +52,7 @@ curl -X POST http://localhost:8080/trip?hourOffset=8
 ```
 Get the 'stopMovingEvent' and it phase and timestamp, the phase will be 'actual':
 ```
-curl -X GET 'http://localhost:8026/ngsi-ld/v1/entities?type=event&q=(eventType==%22stopMovingEvent%22);(involvedObject0==%22urn:ngsi-ld:vehicle:banana-truck-id%22)'
+curl -X GET 'http://localhost:8026/ngsi-ld/v1/entities?type=event&q=(((eventType==%22stopMovingEvent%22);(involvedObject0==%22urn:ngsi-ld:vehicle:banana-truck-id%22))|(lifeCyclePhase==%22actual%22))'
 ```
 Update scenario to offset >8:
 ```
@@ -60,5 +60,5 @@ curl -X POST http://localhost:8080/trip?hourOffset=9
 ```
 Get the 'stopMovingEvent' and it phase and timestamp, the phase will be 'realized':
 ```
-curl -X GET 'http://localhost:8026/ngsi-ld/v1/entities?type=event&q=(eventType==%22stopMovingEvent%22);(involvedObject0==%22urn:ngsi-ld:vehicle:banana-truck-id%22)'
+curl -X GET 'http://localhost:8026/ngsi-ld/v1/entities?type=event&q=(((eventType==%22stopMovingEvent%22);(involvedObject0==%22urn:ngsi-ld:vehicle:banana-truck-id%22))|(lifeCyclePhase==%22actual%22))'
 ```
