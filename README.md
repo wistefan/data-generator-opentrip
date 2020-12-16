@@ -19,9 +19,11 @@ Steps:
 
 The generator provides a very easy api.
 
-> GET /trip{?hourOffset} - returns the data of the whole trip at the given offset in the ngsi-ld data format
-> POST /trip{?hourOffset} - creates the trip at the given offset in the connected broker instance
-> DELETE /trip - deletes the trip at the connected broker instance
+> **GET /trip{?hourOffset}** -  returns the data of the whole trip at the given offset in the ngsi-ld data format
+
+> **POST /trip{?hourOffset}** - creates the trip at the given offset in the connected broker instance
+
+> **DELETE /trip** - deletes the trip at the connected broker instance
 
 Implementation of POST is done very trivial, if an entity already exists it is deleted and newly created(therefore the endpoint is slow - ~15s response time are normal). Therefore its not suitable for brokers that 
 already support the temporal inteface.  
